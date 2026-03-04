@@ -115,6 +115,20 @@ pub mod core {
                 .map(|p| p * -p.log2())
                 .sum()
         }
+
+        /// The highest probability of any individual revision being the source of the regression.
+        fn confidence(&self) -> f64 {
+            *self.ps.iter().max_by(|a, b| a.total_cmp(b)).unwrap()
+        }
+
+        fn most_likely_regression_revision(&self) -> usize {
+            self.ps
+                .iter()
+                .enumerate()
+                .max_by(|(_, a), (_, b)| a.total_cmp(b))
+                .map(|(i, _)| i)
+                .unwrap()
+        }
     }
 
     fn estimate_entropy_after_testing(
@@ -207,18 +221,48 @@ pub mod core {
         let num_revisions = 9;
 
         // --- Per-revision regression prior ---
-        let regression_ps = RegressionProbabilities::initialize(num_revisions);
+        let mut regression_ps = RegressionProbabilities::initialize(num_revisions);
         log::debug!("Got {} revisions, {:?}", num_revisions, regression_ps);
 
         // --- Test outcome priors ---
         // Expected distributions of test outcomes before and after the regression.
         let priors = TestOutcomeDistributions {
-            old: Box::new(Bernoulli { prior: 1.0 }),
+            old: Box::new(Bernoulli { prior: 0.05 }),
             new: Box::new(Bernoulli { prior: 0.5 }),
         };
         log::debug!("Priors for test outcomes: {priors:?}");
 
-        let next_revision_to_test = next_revision_to_test(&regression_ps, &priors);
-        log::info!("Next revision to test: {next_revision_to_test}");
+        let actual_regression_revision = 6;
+
+        let mut old_rng = rand::distr::Distribution::sample_iter(
+            rand::distr::Bernoulli::new(priors.old.p(true)).unwrap(),
+            rand::rng(),
+        );
+        let mut new_rng = rand::distr::Distribution::sample_iter(
+            rand::distr::Bernoulli::new(priors.new.p(true)).unwrap(),
+            rand::rng(),
+        );
+
+        let mut iteration = 0;
+        while regression_ps.confidence() < 0.97 {
+            let next_revision_to_test = next_revision_to_test(&regression_ps, &priors);
+            log::info!("Next revision to test: {next_revision_to_test}");
+
+            let sample_outcome = match next_revision_to_test < actual_regression_revision {
+                true => old_rng.next().unwrap(),
+                false => new_rng.next().unwrap(),
+            };
+            log::info!(
+                "Iteration {iteration}: testing revision {next_revision_to_test} resulted in outcome {sample_outcome}"
+            );
+            regression_ps.update_with_sample(&priors, next_revision_to_test, sample_outcome);
+            log::info!("Updated regression probabilities: {regression_ps:?}");
+            iteration += 1;
+        }
+        println!(
+            "After {iteration} iterations, we're {:.1}% confident that the regression was introduced in revision {}.",
+            regression_ps.confidence() * 100.0,
+            regression_ps.most_likely_regression_revision()
+        );
     }
 }

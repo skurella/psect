@@ -1,5 +1,10 @@
+use std::{collections::HashSet, fmt::Debug, hash::Hash};
+
 use clap::{Parser, Subcommand};
-use psect_core::{Bernoulli, RegressionProbabilities, TestOutcomeDistributions, next_revision_to_test};
+use psect_core::{
+    Bernoulli, RegressionProbabilities, TestOutcomeDistributions, next_revision_to_test,
+    regression::Revision,
+};
 
 #[derive(Parser)]
 #[command(name = "git-psect")]
@@ -31,7 +36,23 @@ fn main() {
 fn wip() {
     let num_revisions = 9;
 
-    let mut regression_ps = RegressionProbabilities::initialize(num_revisions);
+    #[derive(Hash, Eq, PartialEq, PartialOrd)]
+    struct TestRev {
+        id: usize,
+    }
+    impl Debug for TestRev {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.id)
+        }
+    }
+    impl Revision for TestRev {}
+    let mut revisions = Vec::with_capacity(num_revisions);
+    for id in 0..num_revisions {
+        revisions.push(TestRev { id });
+    }
+    let mut known_old_revisions = HashSet::new();
+    known_old_revisions.insert(TestRev { id: 0 });
+    let mut regression_ps = RegressionProbabilities::initialize(&revisions, &known_old_revisions);
     log::debug!("Got {} revisions, {:?}", num_revisions, regression_ps);
 
     let priors = TestOutcomeDistributions {
@@ -53,7 +74,7 @@ fn wip() {
 
     let mut iteration = 0;
     while regression_ps.confidence() < 0.97 {
-        let next = next_revision_to_test(&regression_ps, &priors);
+        let next = next_revision_to_test(&regression_ps, &priors).id;
         log::info!("Next revision to test: {next}");
 
         let sample_outcome = match next < actual_regression_revision {
@@ -68,7 +89,7 @@ fn wip() {
         iteration += 1;
     }
     println!(
-        "After {iteration} iterations, we're {:.1}% confident that the regression was introduced in revision {}.",
+        "After {iteration} iterations, we're {:.1}% confident that the regression was introduced in revision {:?}.",
         regression_ps.confidence() * 100.0,
         regression_ps.most_likely_regression_revision()
     );

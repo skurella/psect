@@ -1,4 +1,8 @@
+use std::{cmp::Ordering, collections::HashSet, fmt::Debug, hash::Hash, iter::zip};
+
 use crate::distribution::TestOutcomeDistributions;
+
+pub trait Revision: Debug + Eq + Hash + PartialOrd {}
 
 fn normalize(p_v: &mut Vec<f64>) {
     match p_v.iter().sum() {
@@ -20,30 +24,57 @@ fn probability_of_outcome<T: Copy>(
         + (1.0 - p_sample_before_regression) * distributions.new.p(sample);
 }
 
-#[derive(Clone)]
-pub struct RegressionProbabilities {
+pub struct RegressionProbabilities<'a, R: Revision> {
+    revisions: &'a Vec<R>,
+
     /// Probability that revision k is the first to follow the new distribution.
     ps: Vec<f64>,
 }
 
-impl std::fmt::Debug for RegressionProbabilities {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RegressionProbabilities")
-            .field("entropy", &format_args!("{:.3}", self.entropy()))
-            .field("ps", &format_args!("{:.3?}", self.ps))
-            .finish()
+impl<'a, R: Revision> Clone for RegressionProbabilities<'a, R> {
+    fn clone(&self) -> Self {
+        RegressionProbabilities {
+            revisions: self.revisions,
+            ps: self.ps.clone(),
+        }
     }
 }
 
-impl RegressionProbabilities {
-    pub fn initialize(num_revisions: usize) -> RegressionProbabilities {
-        // Revision 0 cannot be the source of the regression, by assumption.
-        let mut ps = vec![0.0];
-        ps.append(&mut vec![
-            1.0 / (num_revisions - 1) as f64;
-            num_revisions - 1
-        ]);
-        RegressionProbabilities { ps }
+impl<'a, R: Revision> Debug for RegressionProbabilities<'a, R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debug_struct = f.debug_struct("RegressionProbabilities");
+        debug_struct.field("entropy", &format_args!("{:.3}", self.entropy()));
+        for (revision, p) in zip(self.revisions, &self.ps) {
+            debug_struct.field(&format!("{:.7?}", revision), &format_args!("{:.3?}", p));
+        }
+        debug_struct.finish()
+    }
+}
+
+impl<'a, R: Revision> RegressionProbabilities<'a, R> {
+    pub fn initialize(
+        revisions: &'a Vec<R>,
+        known_old: &HashSet<R>,
+    ) -> RegressionProbabilities<'a, R> {
+        let num_revisions = revisions.len();
+        let num_known_old_revisions = known_old.len();
+
+        // Known-old revisions cannot be the source of the regression, by assumption.
+        let num_possible_regression_revisions = num_revisions - num_known_old_revisions;
+        let initial_probability = 1.0 / num_possible_regression_revisions as f64;
+
+        let ps: Vec<f64> = revisions
+            .iter()
+            .map(|r| {
+                if known_old.contains(r) {
+                    0.0
+                } else {
+                    initial_probability
+                }
+            })
+            .collect();
+
+        RegressionProbabilities { revisions, ps }
     }
 
     pub fn update_with_sample(
@@ -51,17 +82,19 @@ impl RegressionProbabilities {
         distributions: &TestOutcomeDistributions<bool>,
         sample_revision: usize,
         sample_outcome: bool,
-    ) -> &RegressionProbabilities {
+    ) {
         for (curr_revision, curr_p_regression) in self.ps.iter_mut().enumerate() {
-            let p_of_sample_for_revision = match sample_revision < curr_revision {
-                true => distributions.old.p(sample_outcome),
-                false => distributions.new.p(sample_outcome),
+            let p_of_sample_for_revision = match sample_revision.partial_cmp(&curr_revision) {
+                Some(Ordering::Less) => distributions.old.p(sample_outcome),
+                Some(Ordering::Equal) | Some(Ordering::Greater) => {
+                    distributions.new.p(sample_outcome)
+                }
+                None => panic!("DAGs are not yet supported, revisions must be totally ordered"),
             };
             let prior = *curr_p_regression;
             *curr_p_regression = p_of_sample_for_revision * prior;
         }
         normalize(&mut self.ps);
-        self
     }
 
     fn entropy(&self) -> f64 {
@@ -76,18 +109,16 @@ impl RegressionProbabilities {
         *self.ps.iter().max_by(|a, b| a.total_cmp(b)).unwrap()
     }
 
-    pub fn most_likely_regression_revision(&self) -> usize {
-        self.ps
-            .iter()
-            .enumerate()
+    pub fn most_likely_regression_revision(&self) -> &R {
+        zip(self.revisions, &self.ps)
             .max_by(|(_, a), (_, b)| a.total_cmp(b))
-            .map(|(i, _)| i)
+            .map(|(revision, _)| revision)
             .unwrap()
     }
 }
 
-fn estimate_entropy_after_testing(
-    regression_ps: &RegressionProbabilities,
+fn estimate_entropy_after_testing<R: Revision>(
+    regression_ps: &RegressionProbabilities<R>,
     distributions: &TestOutcomeDistributions<bool>,
     sample_revision: usize,
 ) -> f64 {
@@ -108,11 +139,8 @@ fn estimate_entropy_after_testing(
     let expected_entropy: f64 = possible_sample_outcomes
         .iter()
         .map(|&sample_outcome| {
-            let p_sample_outcome = probability_of_outcome(
-                sample_outcome,
-                distributions,
-                p_sample_before_regression,
-            );
+            let p_sample_outcome =
+                probability_of_outcome(sample_outcome, distributions, p_sample_before_regression);
 
             let mut new_regression_ps = regression_ps.clone();
             new_regression_ps.update_with_sample(distributions, sample_revision, sample_outcome);
@@ -142,10 +170,10 @@ fn estimate_entropy_after_testing(
     expected_entropy
 }
 
-pub fn next_revision_to_test(
-    regression_ps: &RegressionProbabilities,
-    distributions: &TestOutcomeDistributions<bool>,
-) -> usize {
+pub fn next_revision_to_test<'a, R: Revision>(
+    regression_ps: &'a RegressionProbabilities<R>,
+    distributions: &'a TestOutcomeDistributions<bool>,
+) -> &'a R {
     let num_revisions = regression_ps.ps.len();
     let mut best_sample_revision = 0;
     let mut lowest_expected_entropy = f64::INFINITY;
@@ -157,5 +185,5 @@ pub fn next_revision_to_test(
             best_sample_revision = sample_revision;
         }
     }
-    best_sample_revision
+    &regression_ps.revisions[best_sample_revision]
 }

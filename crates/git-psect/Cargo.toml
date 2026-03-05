@@ -1,0 +1,15 @@
+[package]
+name = "git-psect"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "git-psect"
+path = "src/main.rs"
+
+[dependencies]
+psect-core = { path = "../psect-core" }
+clap = { version = "4.5.60", features = ["derive"] }
+env_logger = "0.11.9"
+log = "0.4.29"
+rand = "0.10.0"

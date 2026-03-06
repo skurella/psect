@@ -1,37 +1,57 @@
-use std::{collections::HashSet, fmt::Debug, hash::Hash};
+mod candidates;
+mod commands;
+mod error;
+mod repo;
+mod state;
 
 use clap::{Parser, Subcommand};
-use psect_core::{
-    Bernoulli, RegressionProbabilities, TestOutcomeDistributions, next_revision_to_test,
-    regression::Revision,
-};
 
 #[derive(Parser)]
 #[command(name = "git-psect")]
 #[command(about = "probabilistic regression search")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
-pub struct Cli {
+struct Cli {
     #[command(subcommand)]
-    pub command: Commands,
+    command: Commands,
 }
 
 #[derive(Subcommand)]
-pub enum Commands {
-    /// Run the WIP function
-    Wip {},
+enum Commands {
+    /// Initialize a new bisection session
+    Start,
+    /// Mark a revision as known-good
+    Old { rev: String },
+    /// Mark a revision as known-bad
+    New { rev: String },
+    /// Record that the current revision passed the test
+    Pass {
+        #[arg(long)]
+        comment: Option<String>,
+    },
+    /// Record that the current revision failed the test
+    Fail {
+        #[arg(long)]
+        comment: Option<String>,
+    },
+    /// Clear the current bisection session
+    Reset,
 }
 
 fn main() {
     env_logger::init();
 
     let cli = Cli::parse();
+    let result = match cli.command {
+        Commands::Start => commands::start::run(),
+        Commands::Old { rev } => commands::old::run(rev),
+        Commands::New { rev } => commands::new::run(rev),
+        Commands::Pass { comment } => commands::pass_fail::run(true, comment),
+        Commands::Fail { comment } => commands::pass_fail::run(false, comment),
+        Commands::Reset => commands::reset::run(),
+    };
 
-    match &cli.command {
-        Commands::Wip {} => {
-            wip();
-        }
+    if let Err(e) = result {
+        eprintln!("error: {e}");
+        std::process::exit(1);
     }
-}
-
-fn wip() {
 }

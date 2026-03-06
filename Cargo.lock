@@ -202,7 +202,6 @@ dependencies = [
  "env_logger",
  "log",
  "psect-core",
- "rand",
 ]
 
 [[package]]
@@ -348,7 +347,9 @@ dependencies = [
 name = "psect-core"
 version = "0.1.0"
 dependencies = [
+ "env_logger",
  "log",
+ "rand",
 ]
 
 [[package]]

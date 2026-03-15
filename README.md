@@ -22,7 +22,139 @@ cargo install --path crates/git-psect
 
 ## Usage
 
-**Git integration is in progress.**
+Start a session, mark bounds, then either drive it manually or let `run` handle the loop:
+
+```sh
+git psect start
+git psect old <rev>   # before the suspected regression, but may still be flaky
+git psect new <rev>   # a revision where the test fails more frequently
+```
+
+Both `old` and `new` default to `HEAD` if `<rev>` is omitted. Any refspec accepted by `git rev-parse` works — `@{1-week-ago}`, `:/'commit message'`, `main`, etc.
+
+`psect` checks out the most promising commit to test. Then either run the test manually and mark the result:
+
+```sh
+git psect pass        # record that the test passed at HEAD
+git psect fail        # record that the test failed at HEAD
+```
+
+Or let `psect` drive the loop:
+
+```sh
+git psect run ./test.sh
+```
+
+`run` checks out revisions, runs the script, records outcomes, and stops when it reaches the default 95% confidence threshold. You can override it with e.g. `--confidence 0.99`.
+
+### Priors
+
+`psect` models the test as a Bernoulli process. The default priors assume the test passes 95% of the time on pre-regression revisions and 50% of the time on post-regression revisions. If you have better estimates:
+
+```sh
+git psect set-prior old 0.99   # test almost never flakes on good revisions
+git psect set-prior new 0.1    # test almost always fails after the regression
+```
+
+Tighter priors require fewer samples to converge. If your priors are too optimistic, the reported confidence will be overly optimistic as well.
+
+### Inspecting state
+
+```sh
+git psect state             # print the path to the state.toml file
+taplo get -f $(git psect state) -o json "samples"
+git psect reset             # clear the session
+```
+
+State lives at `$GIT_DIR/psect/state.toml`, so each worktree gets its own independent session.
+
+### Example
+
+Notice how the utility keeps rerunning the test on revision `f`, just before `break test.sh`. This is because it's expecting post-regression commits to only fail 50% of the time, and rerunning on `f` is how it gains confidence in its diagnosis.
+
+```text
+% git log --oneline main
+11cc33a (HEAD -> main) m
+839198c l
+e5f545a k
+2968124 j
+ee230f7 i
+5abdb90 h
+2325326 g
+09b5262 break test.sh
+548bdef f
+15969fd e
+6177e1a d
+bc5918e c
+2893fd7 b
+9bda9cf a
+d81b7c4 add test.sh
+
+% git psect start
+Session initialized.
+Waiting for reference pre-regression and post-regression revisions.
+Mark them with 'git psect old <rev>' and 'git psect new <rev>'.
+
+% git psect new main
+Marked 11cc33a420 as new.
+Expecting the test to pass 50% of the time after the regression.
+Change with 'git psect set-prior new <rate>'.
+Now mark a reference pre-regression revision with 'git psect old <rev>'.
+
+% git psect old :/add
+Marked d81b7c493a as old.
+Expecting the test to pass 95% of the time before the regression.
+Change with 'git psect set-prior old <rate>'.
+Checking out 548bdefc33 "f".
+Now either:
+- run your test and call 'git psect pass' or 'git psect fail', or
+- use 'git psect run <test>' to run on autopilot.
+
+% git psect run ./test.sh
+548bdefc33: running test...
+548bdefc33: test passed
+2325326f36: checking out "g"
+2325326f36: running test...
+2325326f36: test failed
+15969fd531: checking out "e"
+15969fd531: running test...
+15969fd531: test passed
+548bdefc33: checking out "f"
+548bdefc33: running test...
+548bdefc33: test passed
+09b52626a7: checking out "break test.sh"
+09b52626a7: running test...
+09b52626a7: test failed
+548bdefc33: checking out "f"
+548bdefc33: running test...
+548bdefc33: test passed
+Current best guess: 09b52626a7 "break test.sh" (59.2% confidence).
+548bdefc33: checking out "f"
+548bdefc33: running test...
+548bdefc33: test passed
+Current best guess: 09b52626a7 "break test.sh" (69.5% confidence).
+548bdefc33: checking out "f"
+548bdefc33: running test...
+548bdefc33: test passed
+Current best guess: 09b52626a7 "break test.sh" (76.5% confidence).
+548bdefc33: checking out "f"
+548bdefc33: running test...
+548bdefc33: test passed
+Current best guess: 09b52626a7 "break test.sh" (80.8% confidence).
+09b52626a7: checking out "break test.sh"
+09b52626a7: running test...
+09b52626a7: test failed
+Current best guess: 09b52626a7 "break test.sh" (91.5% confidence).
+548bdefc33: checking out "f"
+548bdefc33: running test...
+548bdefc33: test passed
+Current best guess: 09b52626a7 "break test.sh" (94.6% confidence).
+548bdefc33: checking out "f"
+548bdefc33: running test...
+548bdefc33: test passed
+96.4% chance the regression was introduced in 09b52626a7: break test.sh.
+Run 'git psect reset' to clear the session or continue running tests to increase confidence.
+```
 
 ### Future work
 

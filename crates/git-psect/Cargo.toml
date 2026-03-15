@@ -12,3 +12,9 @@ psect-core = { path = "../psect-core" }
 clap = { version = "4.5.60", features = ["derive"] }
 env_logger = "0.11.9"
 log = "0.4.29"
+git2 = "0.20.4"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+ctrlc = { version = "3", features = ["termination"] }

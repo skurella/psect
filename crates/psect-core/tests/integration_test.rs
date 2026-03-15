@@ -10,7 +10,7 @@ use psect_core::{
 /// Outcomes are deterministic because the RNG is seeded with a fixed value for each revision.
 #[test]
 fn converges_on_known_regression() {
-    let _ = env_logger::builder().is_test(true).try_init(); 
+    let _ = env_logger::builder().is_test(true).try_init();
 
     let num_revisions = 9;
     let actual_regression_revision = 6;
@@ -20,7 +20,6 @@ fn converges_on_known_regression() {
         new: Box::new(Bernoulli { prior: 0.5 }),
     };
     log::info!("Priors for test outcomes: {priors:?}");
-
 
     #[derive(Hash, Eq, PartialEq, PartialOrd)]
     struct TestRev {

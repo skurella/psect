@@ -50,6 +50,14 @@ enum Commands {
         #[arg(long)]
         comment: Option<String>,
     },
+    /// Run a test script in a loop until a regression is found
+    Run {
+        #[arg(trailing_var_arg = true, required = true)]
+        script: Vec<String>,
+        /// Stop when confidence reaches this threshold
+        #[arg(long, default_value_t = 0.95, value_parser = parse_pass_rate)]
+        confidence: f64,
+    },
     /// Print the path to the session state file
     State,
     /// Clear the current bisection session
@@ -67,6 +75,7 @@ fn main() {
         Commands::SetPrior { bound, pass_rate } => commands::set_prior::run(bound, pass_rate),
         Commands::Pass { comment } => commands::pass_fail::run(true, comment),
         Commands::Fail { comment } => commands::pass_fail::run(false, comment),
+        Commands::Run { script, confidence } => commands::run::run(script, confidence),
         Commands::State => commands::state_cmd::run(),
         Commands::Reset => commands::reset::run(),
     };

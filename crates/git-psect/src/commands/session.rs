@@ -50,7 +50,7 @@ pub fn mark(
             .get_or_insert(DEFAULT_NEW_PASS_RATE),
     };
 
-    advance(&ctx.repo, state)?;
+    let next_prompt = advance(&ctx.repo, state)?;
     state::write(&ctx.state_dir, state)?;
 
     println!(
@@ -76,23 +76,30 @@ pub fn mark(
             Bound::New => "new",
         }
     );
+    println!("{next_prompt}");
     Ok(())
 }
 
-/// Called after any state mutation. Either prompts the user for the next
+/// Called after any config mutation. Either prompts the user for the next
 /// required input or, once both bounds are set, kicks off the bisection.
-pub fn advance(repo: &git2::Repository, state: &State) -> Result<(), Error> {
+/// Returns a trailing prompt string to be printed after the caller's own output.
+pub fn advance(repo: &git2::Repository, state: &State) -> Result<String, Error> {
     if state.old_revisions.is_empty() && state.new_revisions.is_empty() {
-        println!("Waiting for reference pre-regression and post-regression revisions.");
-        println!("Mark them with 'git psect old' and 'git psect new'.");
+        return Ok(concat!(
+            "Waiting for reference pre-regression and post-regression revisions.\n",
+            "Mark them with 'git psect old <rev>' and 'git psect new <rev>'."
+        )
+        .into());
     }
     if state.old_revisions.is_empty() {
-        println!("Now mark a reference pre-regression revision with 'git psect old <rev>'.");
-        return Ok(());
+        return Ok(
+            "Now mark a reference pre-regression revision with 'git psect old <rev>'.".into(),
+        );
     }
     if state.new_revisions.is_empty() {
-        println!("Now mark a reference post-revision with 'git psect new <rev>'.");
-        return Ok(());
+        return Ok(
+            "Now mark a reference post-regression revision with 'git psect new <rev>'.".into(),
+        );
     }
 
     // Validate ancestry regardless of the order old/new were set.
@@ -117,9 +124,19 @@ pub fn advance(repo: &git2::Repository, state: &State) -> Result<(), Error> {
     let distributions = candidates::build_distributions(state);
     let ps = candidates::reconstruct(repo, state, &candidates, &distributions)?;
     let next_sha = candidates::checkout_next(repo, &distributions, &ps)?;
-    println!(
-        "Checking out {}. Run your test and call 'git psect pass' or 'git psect fail'.",
-        &next_sha[..10]
-    );
-    Ok(())
+    let next_summary = repo
+        .find_commit(repo.revparse_single(&next_sha)?.id())?
+        .summary()
+        .unwrap_or("")
+        .to_string();
+    Ok(format!(
+        concat!(
+            "Checking out {} \"{}\".\n",
+            "Now either:\n",
+            "- run your test and call 'git psect pass' or 'git psect fail', or\n",
+            "- use 'git psect run <test>' to run on autopilot."
+        ),
+        &next_sha[..10],
+        next_summary
+    ))
 }

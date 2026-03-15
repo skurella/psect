@@ -26,6 +26,6 @@ pub fn run() -> Result<(), Error> {
 
     state::write(&ctx.state_dir, &state)?;
     println!("Session initialized.");
-    super::session::advance(&ctx.repo, &state)?;
+    println!("{}", super::session::advance(&ctx.repo, &state)?);
     Ok(())
 }

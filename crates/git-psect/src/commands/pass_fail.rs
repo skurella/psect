@@ -65,10 +65,14 @@ pub fn run(outcome: bool, comment: Option<String>) -> Result<(), Error> {
         }
     }
     let next_sha = candidates::checkout_next(&ctx.repo, &distributions, &ps)?;
-    println!(
-        "Checking out {}. Run your test then call 'git psect pass' or 'git psect fail'.",
-        &next_sha[..10]
-    );
+    let next_summary = ctx
+        .repo
+        .find_commit(ctx.repo.revparse_single(&next_sha)?.id())?
+        .summary()
+        .unwrap_or("")
+        .to_string();
+    println!("Checking out {}: {}.", &next_sha[..10], next_summary);
+    println!("Hint: use 'git psect run <test>' to run on autopilot.");
 
     Ok(())
 }

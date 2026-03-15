@@ -41,8 +41,18 @@ pub fn build(repo: &Repository, state: &State) -> Result<Vec<GitRevision>, Error
 
 pub fn build_distributions(state: &State) -> TestOutcomeDistributions<bool> {
     TestOutcomeDistributions {
-        old: Box::new(Bernoulli { prior: state.priors.old_pass_rate }),
-        new: Box::new(Bernoulli { prior: state.priors.new_pass_rate }),
+        old: Box::new(Bernoulli {
+            prior: state
+                .priors
+                .old_pass_rate
+                .expect("old_pass_rate set by `git psect old`"),
+        }),
+        new: Box::new(Bernoulli {
+            prior: state
+                .priors
+                .new_pass_rate
+                .expect("new_pass_rate set by `git psect new`"),
+        }),
     }
 }
 
@@ -65,15 +75,12 @@ pub fn reconstruct<'a>(
     let mut ps = RegressionProbabilities::initialize(candidates, &known_old);
     for sample in &state.samples {
         let oid = repo.revparse_single(&sample.revision)?.id();
-        let idx = candidates
-            .iter()
-            .position(|r| r.0 == oid)
-            .ok_or_else(|| {
-                Error::Validation(format!(
-                    "sample {} not found in candidate list",
-                    &sample.revision[..8]
-                ))
-            })?;
+        let idx = candidates.iter().position(|r| r.0 == oid).ok_or_else(|| {
+            Error::Validation(format!(
+                "sample {} not found in candidate list",
+                &sample.revision[..10]
+            ))
+        })?;
         ps.update_with_sample(distributions, idx, sample.outcome);
     }
     Ok(ps)
@@ -82,7 +89,10 @@ pub fn reconstruct<'a>(
 pub fn checkout(repo: &Repository, oid: Oid) -> Result<(), Error> {
     let commit = repo.find_commit(oid)?;
     let tree = commit.tree()?;
-    repo.checkout_tree(tree.as_object(), Some(&mut git2::build::CheckoutBuilder::default()))?;
+    repo.checkout_tree(
+        tree.as_object(),
+        Some(&mut git2::build::CheckoutBuilder::default()),
+    )?;
     repo.set_head_detached(oid)?;
     Ok(())
 }

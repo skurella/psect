@@ -1,7 +1,7 @@
 use crate::{
     error::Error,
     repo,
-    state::{self, Meta, Priors, State},
+    state::{self, Meta, State},
 };
 
 pub fn run() -> Result<(), Error> {
@@ -18,13 +18,14 @@ pub fn run() -> Result<(), Error> {
             tool_version: env!("CARGO_PKG_VERSION").into(),
             started_at: chrono::Utc::now().to_rfc3339(),
         },
-        priors: Priors::default(),
+        priors: Default::default(),
         old_revisions: vec![],
         new_revisions: vec![],
         samples: vec![],
     };
 
     state::write(&ctx.state_dir, &state)?;
-    println!("Session initialized. Set the search bounds with 'git psect old <rev>' and 'git psect new <rev>'.");
+    println!("Session initialized.");
+    super::session::advance(&ctx.repo, &state)?;
     Ok(())
 }

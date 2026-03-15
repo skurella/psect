@@ -22,19 +22,12 @@ pub struct Meta {
     pub started_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Priors {
-    pub old_pass_rate: f64,
-    pub new_pass_rate: f64,
-}
-
-impl Default for Priors {
-    fn default() -> Self {
-        Priors {
-            old_pass_rate: 0.95,
-            new_pass_rate: 0.50,
-        }
-    }
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub old_pass_rate: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_pass_rate: Option<f64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

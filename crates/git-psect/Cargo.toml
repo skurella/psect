@@ -2,6 +2,9 @@
 name = "git-psect"
 version = "0.1.0"
 edition = "2024"
+description = "probabilistic alternative to git bisect that handles flaky tests using information theory"
+license = "MIT"
+repository = "https://github.com/skurella/psect"
 
 [lib]
 path = "src/lib.rs"

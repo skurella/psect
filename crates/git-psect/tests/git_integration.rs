@@ -1,5 +1,5 @@
-use git2::{Oid, Repository};
 use git_psect::{candidates, commands::session, repo, state};
+use git2::{Oid, Repository};
 use serial_test::serial;
 use tempfile::TempDir;
 
@@ -114,7 +114,10 @@ fn open_rejects_invalid_git_dir() {
     unsafe { std::env::set_var("GIT_DIR", tmp.path()) };
     let result = repo::open();
     unsafe { std::env::remove_var("GIT_DIR") };
-    assert!(matches!(result, Err(git_psect::error::Error::Validation(_))));
+    assert!(matches!(
+        result,
+        Err(git_psect::error::Error::Validation(_))
+    ));
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +202,12 @@ fn advance_checks_out_next_commit() {
     let (_tmp, repo, oids) = make_repo(5);
     let st = make_state_with_bounds(&oids[0].to_string(), &oids[4].to_string());
     let prompt = session::advance(&repo, &st).unwrap();
-    assert!(repo.head_detached().unwrap(), "HEAD should be detached after advance");
-    assert!(prompt.contains("Checking out"), "prompt should name the checked-out commit");
+    assert!(
+        repo.head_detached().unwrap(),
+        "HEAD should be detached after advance"
+    );
+    assert!(
+        prompt.contains("Checking out"),
+        "prompt should name the checked-out commit"
+    );
 }

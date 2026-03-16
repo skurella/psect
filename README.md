@@ -17,13 +17,19 @@ The next revision to test is selected such that it is expected to have the lowes
 ## Installation
 
 ```sh
-cargo install --path crates/git-psect
+cargo install git-psect
 ```
 
 If the build fails with an OpenSSL error (common on systems with a missing or incompatible system OpenSSL), compile with the vendored feature to build OpenSSL from source:
 
 ```sh
-cargo install --path crates/git-psect --features vendored
+cargo install git-psect --features vendored
+```
+
+To install from source:
+
+```sh
+cargo install --path crates/git-psect
 ```
 
 ## Usage

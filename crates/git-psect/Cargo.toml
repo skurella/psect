@@ -17,7 +17,7 @@ path = "src/main.rs"
 vendored = ["openssl-sys/vendored"]
 
 [dependencies]
-psect-core = { path = "../psect-core" }
+psect-core = { path = "../psect-core", version = "0.1.0" }
 clap = { version = "4.5.60", features = ["derive"] }
 env_logger = "0.11.9"
 log = "0.4.29"

@@ -1,8 +1,4 @@
-mod candidates;
-mod commands;
-mod error;
-mod repo;
-mod state;
+use git_psect::commands;
 
 use clap::{Parser, Subcommand};
 

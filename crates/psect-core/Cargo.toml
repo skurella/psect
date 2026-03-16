@@ -2,6 +2,9 @@
 name = "psect-core"
 version = "0.1.0"
 edition = "2024"
+description = "probabilistic regression search — entropy-minimizing bisection for flaky tests"
+license = "MIT"
+repository = "https://github.com/skurella/psect"
 
 [dependencies]
 env_logger = "0.11.9"

@@ -17,6 +17,12 @@ The next revision to test is selected such that it is expected to have the lowes
 ## Installation
 
 ```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/skurella/psect/releases/latest/download/git-psect-installer.sh | sh
+```
+
+Or via cargo:
+
+```sh
 cargo install git-psect
 ```
 
@@ -26,7 +32,7 @@ If the build fails with an OpenSSL error (common on systems with a missing or in
 cargo install git-psect --features vendored
 ```
 
-To install from source:
+To install from local source:
 
 ```sh
 cargo install --path crates/git-psect
